@@ -17,11 +17,16 @@ model User {
   password      String
   emailVerified DateTime?
   image         String?
+  role          String    @default("owner") // owner, admin, manager, viewer
+  twoFactorEnabled Boolean @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  rooms   Room[]
-  apiKeys ApiKey[]
+  rooms         Room[]
+  apiKeys       ApiKey[]
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+  teamMembers   TeamMember[]
 
   @@map("users")
 }
@@ -75,10 +80,76 @@ model Item {
   quantity           Int      @default(0)
   lowStockThreshold  Int      @default(10)
   imageUrl           String?
+  barcode            String?  @unique
+  qrCode             String?
+  tags               String[] @default([])
   categoryId         String
   category           Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  deletedAt          DateTime? // Soft delete
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  activityLogs ActivityLog[]
+
   @@map("items")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String   // created, updated, deleted, quantity_adjusted, checked_out, checked_in
+  entityType  String   // item, room, category, user
+  entityId    String
+  entityName  String   // Store name for better UX
+  changes     Json?    // Store what changed
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId      String?
+  item        Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // low_stock, item_deleted, user_invited
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metadata  Json?    // Additional data
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  members TeamMember[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("member") // owner, admin, member, viewer
+  invitedBy String?
+  joinedAt  DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
 }

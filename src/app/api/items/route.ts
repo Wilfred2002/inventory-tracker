@@ -12,6 +12,41 @@ const itemSchema = z.object({
   imageUrl: z.string().url().optional(),
 })
 
+export async function GET(req: Request) {
+  try {
+    const user = await getCurrentUser()
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const items = await prisma.item.findMany({
+      where: {
+        category: {
+          room: { userId: user.id },
+        },
+      },
+      include: {
+        category: {
+          include: {
+            room: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
+
+    return NextResponse.json({ items })
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser()
@@ -50,10 +85,26 @@ export async function POST(req: Request) {
       },
     })
 
+    // Log activity
+    try {
+      await prisma.activityLog.create({
+        data: {
+          action: "created",
+          entityType: "item",
+          entityId: item.id,
+          entityName: item.name,
+          userId: user.id,
+          itemId: item.id,
+        },
+      })
+    } catch (error) {
+      console.error("Failed to log activity:", error)
+    }
+
     return NextResponse.json({ item })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
 
     return NextResponse.json(

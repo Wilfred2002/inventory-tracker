@@ -12,7 +12,7 @@ const updateItemSchema = z.object({
 
 export async function GET(
   req: Request,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
     const apiKey = req.headers.get("x-api-key")
@@ -30,9 +30,11 @@ export async function GET(
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 })
     }
 
+    const { itemId } = await params
+
     const item = await prisma.item.findFirst({
       where: {
-        id: params.itemId,
+        id: itemId,
         category: {
           room: { userId },
         },
@@ -61,7 +63,7 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
     const apiKey = req.headers.get("x-api-key")
@@ -79,13 +81,14 @@ export async function POST(
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 })
     }
 
+    const { itemId } = await params
     const body = await req.json()
     const data = updateItemSchema.parse(body)
 
     // Verify item belongs to the user
     const item = await prisma.item.findFirst({
       where: {
-        id: params.itemId,
+        id: itemId,
         category: {
           room: { userId },
         },
@@ -97,7 +100,7 @@ export async function POST(
     }
 
     const updatedItem = await prisma.item.update({
-      where: { id: params.itemId },
+      where: { id: itemId },
       data,
     })
 
@@ -107,7 +110,7 @@ export async function POST(
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
 
     return NextResponse.json(

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -13,12 +14,16 @@ import {
   Menu,
   X,
   LogOut,
+  History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import toast from "react-hot-toast"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Rooms", href: "/dashboard/rooms", icon: FolderOpen },
+  { name: "Items", href: "/dashboard/items", icon: Package },
+  { name: "Activity", href: "/dashboard/activity", icon: History },
   { name: "API Keys", href: "/dashboard/keys", icon: Key },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
@@ -92,6 +97,14 @@ export default function DashboardLayout({
             <Button
               variant="ghost"
               className="w-full justify-start text-muted-foreground hover:text-foreground"
+              onClick={async () => {
+                try {
+                  await signOut({ callbackUrl: "/" })
+                  toast.success("Signed out successfully")
+                } catch (error) {
+                  toast.error("Error signing out")
+                }
+              }}
             >
               <LogOut className="h-4 w-4 mr-3" />
               Sign Out

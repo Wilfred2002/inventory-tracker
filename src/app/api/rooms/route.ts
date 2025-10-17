@@ -56,10 +56,25 @@ export async function POST(req: Request) {
       },
     })
 
+    // Log activity
+    try {
+      await prisma.activityLog.create({
+        data: {
+          action: "created",
+          entityType: "room",
+          entityId: room.id,
+          entityName: room.name,
+          userId: user.id,
+        },
+      })
+    } catch (error) {
+      console.error("Failed to log activity:", error)
+    }
+
     return NextResponse.json({ room })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
 
     return NextResponse.json(

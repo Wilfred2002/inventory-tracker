@@ -10,7 +10,7 @@ const categorySchema = z.object({
 
 export async function PUT(
   req: Request,
-  { params }: { params: { categoryId: string } }
+  { params }: { params: Promise<{ categoryId: string }> }
 ) {
   try {
     const user = await getCurrentUser()
@@ -19,13 +19,14 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { categoryId } = await params
     const body = await req.json()
     const { name, description } = categorySchema.parse(body)
 
     // Verify category belongs to user's room
     const category = await prisma.category.findFirst({
       where: {
-        id: params.categoryId,
+        id: categoryId,
         room: { userId: user.id },
       },
     })
@@ -38,15 +39,42 @@ export async function PUT(
     }
 
     const updatedCategory = await prisma.category.update({
-      where: { id: params.categoryId },
+      where: { id: categoryId },
       data: { name, description },
       include: { items: true },
     })
 
+    // Log activity (track what changed)
+    try {
+      const changes: Record<string, { from: any; to: any }> = {}
+
+      if (name !== category.name) {
+        changes.name = { from: category.name, to: name }
+      }
+      if (description !== undefined && description !== category.description) {
+        changes.description = { from: category.description, to: description }
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await prisma.activityLog.create({
+          data: {
+            action: "updated",
+            entityType: "category",
+            entityId: category.id,
+            entityName: updatedCategory.name,
+            changes,
+            userId: user.id,
+          },
+        })
+      }
+    } catch (error) {
+      console.error("Failed to log activity:", error)
+    }
+
     return NextResponse.json({ category: updatedCategory })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.issues }, { status: 400 })
     }
 
     return NextResponse.json(
@@ -58,7 +86,7 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { categoryId: string } }
+  { params }: { params: Promise<{ categoryId: string }> }
 ) {
   try {
     const user = await getCurrentUser()
@@ -67,10 +95,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { categoryId } = await params
+
     // Verify category belongs to user's room
     const category = await prisma.category.findFirst({
       where: {
-        id: params.categoryId,
+        id: categoryId,
         room: { userId: user.id },
       },
     })
@@ -82,8 +112,29 @@ export async function DELETE(
       )
     }
 
+    // Log activity before deletion
+    try {
+      await prisma.activityLog.create({
+        data: {
+          action: "deleted",
+          entityType: "category",
+          entityId: category.id,
+          entityName: category.name,
+          changes: {
+            deletedCategory: {
+              name: category.name,
+              description: category.description,
+            },
+          },
+          userId: user.id,
+        },
+      })
+    } catch (error) {
+      console.error("Failed to log activity:", error)
+    }
+
     await prisma.category.delete({
-      where: { id: params.categoryId },
+      where: { id: categoryId },
     })
 
     return NextResponse.json({ success: true })

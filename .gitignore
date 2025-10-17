@@ -35,3 +35,13 @@ next-env.d.ts
 
 # prisma
 prisma/migrations/
+
+# internal documentation
+ARCHITECTURE.md
+PROJECT_SUMMARY.md
+MVP_FEATURE_LIST.md
+LOCAL_SETUP.md
+QUICKSTART.md
+GET_SUPABASE_URL.md
+.env.supabase-template
+test-api.sh

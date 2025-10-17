@@ -2,10 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/session"
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ keyId: string }> }
-) {
+export async function GET() {
   try {
     const user = await getCurrentUser()
 
@@ -13,25 +10,28 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { keyId } = await params
-
-    const apiKey = await prisma.apiKey.findFirst({
+    // Get activity logs for the user
+    const activities = await prisma.activityLog.findMany({
       where: {
-        id: keyId,
         userId: user.id,
       },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100, // Limit to last 100 activities
     })
 
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key not found" }, { status: 404 })
-    }
-
-    await prisma.apiKey.delete({
-      where: { id: keyId },
-    })
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ activities })
   } catch (error) {
+    console.error("Activity log error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
